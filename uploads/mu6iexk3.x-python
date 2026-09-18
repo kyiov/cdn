@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""TokenHarbor Farm :: Interactive — clean colored UI, spinner, no flow noise."""
+import requests, re, json, uuid, time, sys, os, random, threading
+
+# ── config ──────────────────────────────────────────────────────────────
+BASE = "https://tokenharbor.ai"
+CT   = "https://api.cybertemp.xyz"
+KEY  = "tk_XXXX, DAFTAR CYBERTEMP PASTE API KEY DISINI"
+UA   = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+PW   = "ThR3c0n!2k26X"
+CH   = {"X-API-KEY": KEY, "Accept": "application/json", "User-Agent": UA}
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "akun.txt")
+DOMS = ["cybertemp.xyz","kuraishop.online","andrewcluh.top","diddyricky.com",
+        "diddyricky.info","mikerossy.com","mikethe.guru","crypto-universe.org",
+        "sexymeowers.space","sexymeowers.store","6974.click","acidservices.xyz",
+        "andrewslife.tattoo","ashnkarsh.life","atelierdelune.shop","barnrestaurant.pro"]
+TZS  = ["Asia/Jakarta","Asia/Singapore","Asia/Tokyo","Asia/Bangkok",
+        "Europe/London","Europe/Berlin","America/New_York","Asia/Dubai"]
+PROXY_USER = "proxy user disini"
+PROXY_PASS = "proxy password disini"
+PROXY_HOST = "dan host+port disini"
+
+# ── ansi ─────────────────────────────────────────────────────────────────
+R = "\033[0m"; B = "\033[1m"; DIM = "\033[2m"
+C = "\033[36m"; G = "\033[32m"; Y = "\033[33m"; RD = "\033[31m"; MG = "\033[35m"
+def hide(): sys.stdout.write("\033[?25l")
+def show(): sys.stdout.write("\033[?25h")
+
+SPIN = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+
+class Spin:
+    """Animated spinner with live status text. Prints nothing of the flow."""
+    def __init__(self, label):
+        self.label = label; self.on = True; self.t = None; self.f = "…"
+    def _run(self):
+        i = 0
+        while self.on:
+            sys.stdout.write(f"\r  {C}{SPIN[i % len(SPIN)]}{R} {self.label} {DIM}{self.f}{R}   ")
+            sys.stdout.flush(); i += 1; time.sleep(0.08)
+        sys.stdout.write("\r" + " " * (len(self.label) + len(self.f) + 12) + "\r")
+        sys.stdout.flush()
+    def start(self):
+        hide(); self.t = threading.Thread(target=self._run, daemon=True); self.t.start()
+    def set(self, f="…"):
+        self.f = f
+    def stop(self, mark, msg, color):
+        self.on = False; time.sleep(0.12); show()
+        sys.stdout.write(f"\r  {color}{mark}{R} {msg}\n"); sys.stdout.flush()
+
+# ── box ──────────────────────────────────────────────────────────────────
+ANSI_RE = re.compile(r"\033\[[0-9;]*m")
+def vis_len(s): return len(ANSI_RE.sub("", s))
+
+def box(title, color=G, w=58):
+    inner = w - 2
+    s = f"{color}{B}{title}{R}"
+    pad = inner - vis_len(s)
+    left = pad // 2; right = pad - left
+    print(f" {color}╭{'─'*inner}╮{R}")
+    print(f" {color}│{' '*left}{s}{' '*right}{color}│{R}")
+    print(f" {color}╰{'─'*inner}╯{R}")
+
+def line(w=58):
+    print(f" {DIM}{'─'*w}{R}")
+
+def banner():
+    os.system("cls" if os.name == "nt" else "clear")
+    print()
+    box("T O K E N H A R B O R   F A R M   B O T", MG)
+    print()
+
+# ── core flow (silent) ───────────────────────────────────────────────────
+def farm_one(di):
+    mail = f"th{uuid.uuid4().hex[:8]}@{DOMS[di % len(DOMS)]}"
+    sp = Spin(f"creating {mail}")
+    sp.start()
+    try:
+        # signup
+        sp.set("registering…")
+        sess = f"c{uuid.uuid4().hex[:8]}"
+        P = f"http://{PROXY_USER}{sess}:{PROXY_PASS}@{PROXY_HOST}"
+        PX = {"http": P, "https": P}
+        s = requests.Session(); s.proxies = PX
+        s.headers.update({"User-Agent": UA, "Origin": BASE})
+        r = s.get(f"{BASE}/login?mode=signup", timeout=30)
+        dpl = (re.findall(r'data-dpl-id="(dpl_[a-zA-Z0-9]+)"', r.text) or ["x"])[0]
+        h = re.findall(r'([a-f0-9]{40,60})', r.text)[0]
+        bnd = "----WebKitFormBoundary" + uuid.uuid4().hex[:16]
+        def fld(n, v): return f'--{bnd}\r\nContent-Disposition: form-data; name="{n}"\r\n\r\n{v}\r\n'
+        body = (fld("1_device_fingerprint", str(uuid.uuid4())) +
+                fld("1_timezone", random.choice(TZS)) + fld("1_next", "") +
+                fld("1_email", mail) + fld("1_password", PW) + fld("1_invite_code", "") +
+                fld("0", '["$undefined","$K1"]') + f"--{bnd}--\r\n")
+        r = s.post(f"{BASE}/login?mode=signup", headers={
+            "Content-Type": f"multipart/form-data; boundary={bnd}", "next-action": h,
+            "Accept": "text/x-component", "Referer": f"{BASE}/login?mode=signup",
+            "x-deployment-id": dpl, "sec-fetch-dest": "empty", "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin"}, data=body.encode(), timeout=40, allow_redirects=False)
+        if r.status_code != 303:
+            e = re.search(r'"error":"([^"]{3,120})"', r.text or "")
+            sp.stop("✖", f"{mail} — signup rejected", RD)
+            return None
+        ip = requests.get("https://api.ipify.org?format=json", proxies=PX, timeout=25).json()["ip"]
+
+        # verify email
+        sp.set("waiting email…")
+        s.post(f"{BASE}/api/me/send-verification-email", timeout=20)
+        link = None; t0 = time.time(); tries = 0
+        while time.time() - t0 < 300:
+            try:
+                j = requests.get(f"{CT}/getMail", params={"email": mail}, headers=CH, timeout=15).json()
+                for msg in (j if isinstance(j, list) else []):
+                    if not isinstance(msg, dict): continue
+                    txt = str(msg.get("text") or "") + " " + str(msg.get("html") or "")
+                    m = re.search(r"verify-email\?token=([A-Za-z0-9_\-]+)", txt)
+                    if m: link = f"{BASE}/verify-email?token={m.group(1)}"; break
+            except Exception: pass
+            if link: break
+            if (time.time() - t0) > 50 * (tries + 1) and tries < 5:
+                try: s.post(f"{BASE}/api/me/send-verification-email", timeout=20)
+                except Exception: pass
+                tries += 1
+            time.sleep(3)
+        if not link:
+            sp.stop("✖", f"{mail} — email never arrived", RD)
+            return None
+
+        # activate
+        sp.set("activating…")
+        r = s.get(link, timeout=30, allow_redirects=True)
+        if "verify=success" not in (r.url or ""):
+            sp.stop("✖", f"{mail} — verification failed", RD)
+            return None
+        s.post(f"{BASE}/api/me/privacy", json={"free_models_enabled": True},
+               headers={"Content-Type": "application/json"}, timeout=20)
+        r = s.post(f"{BASE}/api/keys", json={"label": f"auto-{di}"},
+                   headers={"Content-Type": "application/json"}, timeout=20)
+        k = (r.json() or {}).get("plaintext")
+        if not k:
+            sp.stop("✖", f"{mail} — key generation failed", RD)
+            return None
+
+        # validate key via /v1/models (fast, no inference)
+        sp.set("validating key…")
+        rc = None
+        for _try in range(2):
+            try:
+                rc = requests.get(f"{BASE}/v1/models",
+                                  headers={"Authorization": f"Bearer {k}", "User-Agent": UA},
+                                  proxies=PX, timeout=8)
+                if rc.status_code in (200, 401, 403): break
+            except Exception:
+                pass
+            rc = None
+        if rc is None or rc.status_code != 200:
+            why = "network timeout" if rc is None else f"invalid ({rc.status_code})"
+            sp.stop("✖", f"{mail} — key {why}", RD)
+            return None
+        with open(OUT, "a") as f:
+            f.write(f"{k}\n")
+        sp.stop("✔", f"{mail}  {DIM}·{R}  {G}{k[:28]}…{R}  {DIM}({ip}){R}", G)
+        return k
+    except Exception as e:
+        sp.stop("✖", f"{mail} — {str(e)[:48]}", RD)
+        return None
+    finally:
+        if sp.on: sp.on = False
+
+# ── main ─────────────────────────────────────────────────────────────────
+def main():
+    banner()
+    print()
+    try:
+        while True:
+            try:
+                inp = input(f"  {C}▸{R} Jumlah akun: {R}").strip()
+                target = int(inp)
+            except ValueError:
+                print(f"  {RD}angka bro{R}"); continue
+            if target < 1:
+                print(f"  {RD}minimal 1{R}"); continue
+            break
+    except (EOFError, KeyboardInterrupt):
+        print(); return
+
+    print()
+    ok = 0
+    t_all = time.time()
+    for i in range(target):
+        k = farm_one(i)
+        if k: ok += 1
+    # summary
+    print()
+    line()
+    print(f"  {B}DONE{R}  {G}✔ {ok} success{R}  {RD}✖ {target-ok} failed{R}   {DIM}in {time.time()-t_all:.0f}s{R}")
+    print(f"  {DIM}keys →{R} {OUT}")
+    line()
+    print()
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n\n  {Y}aborted{R}\n"); show()
